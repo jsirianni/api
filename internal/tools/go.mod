@@ -1,4 +1,4 @@
-module api/internal/tools
+module github.com/jsirianni/api/internal/tools
 
 go 1.19
 
