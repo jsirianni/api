@@ -1,0 +1,191 @@
+name: CI
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: false
+
+# TODO(jsirianni): Add build binary and license scanning
+
+jobs:
+  setup-environment:
+    runs-on: "ubuntu-20.04"
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v3
+      - name: Setup Go
+        uses: actions/setup-go@v3.3.1
+        with:
+          go-version: 1.19
+      - name: Setup Go Environment
+        run: |
+          echo "GOPATH=$(go env GOPATH)" >> $GITHUB_ENV
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+      - name: Cache Go
+        id: module-cache
+        uses: actions/cache@v3
+        with:
+          path: /home/runner/go/pkg/mod
+          key: go-pkg-mod-${{ runner.os }}-${{ hashFiles('**/go.mod', '**/go.sum') }}
+      - name: Install dependencies
+        if: steps.module-cache.outputs.cache-hit != 'true'
+        run: make gomoddownload
+      - name: Cache Tools
+        id: tool-cache
+        uses: actions/cache@v3
+        with:
+          path: /home/runner/go/bin
+          key: tools-${{ runner.os }}-${{ hashFiles('./internal/tools/go.mod') }}
+      - name: Install Tools
+        if: steps.tool-cache.outputs.cache-hit != 'true'
+        run: make install-tools
+
+  vet:
+    runs-on: "ubuntu-20.04"
+    needs:
+      - setup-environment
+    steps:
+      - name: Check out source code
+        uses: actions/checkout@v3
+      - name: Set up Go
+        uses: actions/setup-go@v3.3.1
+        with:
+          go-version: 1.19
+      - name: Setup Go Environment
+        run: |
+          echo "GOPATH=$(go env GOPATH)" >> $GITHUB_ENV
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+      - name: Cache Go
+        id: module-cache
+        uses: actions/cache@v3
+        with:
+          path: /home/runner/go/pkg/mod
+          key: go-pkg-mod-${{ runner.os }}-${{ hashFiles('**/go.mod', '**/go.sum') }}
+      - name: Vet
+        run: go vet ./...
+
+  secure:
+    runs-on: "ubuntu-20.04"
+    needs:
+      - setup-environment
+    steps:
+      - name: Check out source code
+        uses: actions/checkout@v3
+      - name: Set up Go
+        uses: actions/setup-go@v3.3.1
+        with:
+          go-version: 1.19
+      - name: Setup Go Environment
+        run: |
+          echo "GOPATH=$(go env GOPATH)" >> $GITHUB_ENV
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+      - name: Cache Tools
+        id: tool-cache
+        uses: actions/cache@v3
+        with:
+          path: /home/runner/go/bin
+          key: tools-${{ runner.os }}-${{ hashFiles('./internal/tools/go.mod') }}
+      - name: Gosec
+        run: make gosec
+
+  staticcheck:
+    runs-on: "ubuntu-20.04"
+    needs:
+      - setup-environment
+    steps:
+      - name: Check out source code
+        uses: actions/checkout@v3
+      - name: Set up Go
+        uses: actions/setup-go@v3.3.1
+        with:
+          go-version: 1.19
+      - name: Setup Go Environment
+        run: |
+          echo "GOPATH=$(go env GOPATH)" >> $GITHUB_ENV
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+      - name: Cache Tools
+        id: tool-cache
+        uses: actions/cache@v3
+        with:
+          path: /home/runner/go/bin
+          key: tools-${{ runner.os }}-${{ hashFiles('./internal/tools/go.mod') }}
+      - name: Staticcheck
+        run: make staticcheck
+
+  lint:
+    runs-on: "ubuntu-20.04"
+    needs:
+      - setup-environment
+    steps:
+      - name: Check out source code
+        uses: actions/checkout@v3
+      - name: Set up Go
+        uses: actions/setup-go@v3.3.1
+        with:
+          go-version: 1.19
+      - name: Setup Go Environment
+        run: |
+          echo "GOPATH=$(go env GOPATH)" >> $GITHUB_ENV
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+      - name: Cache Tools
+        id: tool-cache
+        uses: actions/cache@v3
+        with:
+          path: /home/runner/go/bin
+          key: tools-${{ runner.os }}-${{ hashFiles('./internal/tools/go.mod') }}
+      - name: Lint
+        run: make lint
+
+  misspell:
+    runs-on: "ubuntu-20.04"
+    needs:
+      - setup-environment
+    steps:
+      - name: Check out source code
+        uses: actions/checkout@v3
+      - name: Set up Go
+        uses: actions/setup-go@v3.3.1
+        with:
+          go-version: 1.19
+      - name: Setup Go Environment
+        run: |
+          echo "GOPATH=$(go env GOPATH)" >> $GITHUB_ENV
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+      - name: Cache Tools
+        id: tool-cache
+        uses: actions/cache@v3
+        with:
+          path: /home/runner/go/bin
+          key: tools-${{ runner.os }}-${{ hashFiles('./internal/tools/go.mod') }}
+      - name: Misspell
+        run: make misspell
+
+  test:
+    runs-on: "ubuntu-20.04"
+    needs:
+      - setup-environment
+    steps:
+      - name: Check out source code
+        uses: actions/checkout@v3
+      - name: Set up Go
+        uses: actions/setup-go@v3.3.1
+        with:
+          go-version: 1.19
+      - name: Setup Go Environment
+        run: |
+          echo "GOPATH=$(go env GOPATH)" >> $GITHUB_ENV
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+      - name: Cache Go
+        id: module-cache
+        uses: actions/cache@v3
+        with:
+          path: /home/runner/go/pkg/mod
+          key: go-pkg-mod-${{ runner.os }}-${{ hashFiles('**/go.mod', '**/go.sum') }}
+      - run: make test
+  
