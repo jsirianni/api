@@ -12,7 +12,7 @@ gomoddownload:
 
 .PHONY: test
 test:
-	go test ./...
+	go test ./... -cover
 
 .PHONY: vet
 vet:
