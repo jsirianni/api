@@ -81,20 +81,33 @@ func TestNew(t *testing.T) {
 		name      string
 		ops       []Option
 		expectErr bool
+		errStr    string
 	}{
 		{
 			"valid",
 			[]Option{
 				WithBindAddress("", 10000),
+				WithMemoryStore(false),
 			},
 			false,
+			"",
 		},
 		{
 			"invalid",
 			[]Option{
 				WithBindAddress("x.x.x", 0),
+				WithMemoryStore(false),
 			},
 			true,
+			"failed to parse 'x.x.x' as an IP address",
+		},
+		{
+			"missing-store",
+			[]Option{
+				WithBindAddress("", 10000),
+			},
+			true,
+			"server must be configured with a storage backend",
 		},
 	}
 
@@ -104,6 +117,7 @@ func TestNew(t *testing.T) {
 
 			if tc.expectErr {
 				require.Error(t, err)
+				require.ErrorContains(t, err, tc.errStr)
 				return
 			}
 			require.NoError(t, err)
@@ -118,7 +132,7 @@ func TestNewNoLogger(t *testing.T) {
 }
 
 func testLogger(t *testing.T) *zap.Logger {
-	logger, err := logging.New()
+	logger, err := logging.New(logging.DebugLevel)
 	if err != nil {
 		t.Errorf("%s: expected logging.New to return a logger without an error. this indicated an issue with the internal/logger package.", err)
 		t.Fail()

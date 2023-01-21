@@ -12,6 +12,7 @@ import (
 
 	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
+	"github.com/jsirianni/server/store"
 	"go.uber.org/zap"
 )
 
@@ -44,6 +45,20 @@ func WithBindAddress(address string, port uint) Option {
 	}
 }
 
+// WithMemoryStore configures the store interface with
+// an in memory storage backend. If seed is true, the memory
+// store will be seeded with test data.
+func WithMemoryStore(seed bool) Option {
+	return func(s *Server) error {
+		if seed {
+			s.store = store.NewTestingMemory()
+		} else {
+			s.store = store.NewMemory()
+		}
+		return nil
+	}
+}
+
 // New takes one or more Option functions and returns a Server
 // configured with those options. Returns an error if any errors
 // are encountered.
@@ -53,7 +68,7 @@ func New(logger *zap.Logger, ops ...Option) (*Server, error) {
 	}
 
 	// Gin runs in debug mode by default, but we always want
-	// release unless otherwirse specified.
+	// release unless otherwise specified.
 	switch os.Getenv("GIN_MODE") {
 	case "debug":
 		gin.SetMode(gin.DebugMode)
@@ -61,7 +76,9 @@ func New(logger *zap.Logger, ops ...Option) (*Server, error) {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	s := &Server{}
+	s := &Server{
+		logger: logger,
+	}
 
 	// TODO(jsirianni): Add timeout options to option functions
 	// in order to allow the user to override default values.
@@ -79,6 +96,10 @@ func New(logger *zap.Logger, ops ...Option) (*Server, error) {
 		}
 	}
 
+	if s.store == nil {
+		return nil, fmt.Errorf("server must be configured with a storage backend")
+	}
+
 	return s, nil
 }
 
@@ -89,13 +110,16 @@ type Server struct {
 	// Option functions.
 	Router *gin.Engine
 
+	logger *zap.Logger
 	server http.Server
+	store  store.Store
 }
 
 // Start starts the server with net/http's ListenAndServer
 // method. Runtime errors are returned and should be handled
 // by the caller.
 func (s *Server) Start() error {
+	s.addRoutes()
 	s.server.Handler = s.Router
 	return s.server.ListenAndServe()
 }
@@ -118,4 +142,16 @@ func (s *Server) Stop(timeout time.Duration) error {
 // 'host:port'.
 func (s *Server) Addr() string {
 	return s.server.Addr
+}
+
+func (s *Server) addRoutes() {
+	s.Router.GET("/health", healthHandler)
+
+	// /v1/accounts requests
+	v1 := s.Router.Group("/v1/accounts")
+	v1.POST(":account/validate", s.checkSubscriptionHandler)
+	v1.GET(":account", s.accountHandler)
+	v1.GET(":account/devices", s.devicesHandler)
+	v1.GET(":account/devices/:device", s.deviceHandler)
+	v1.PUT(":account/device", s.registerDeviceHandler)
 }

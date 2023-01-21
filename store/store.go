@@ -9,11 +9,14 @@ type Store interface {
 
 	// RegisterDevice takes an accountID, accountKey, deviceID, deviceInfo and stores
 	// the device if the account is valid.
-	RegisterDevice(accountID, accountKey, deviceID string, deviceInfo model.Device) error
+	RegisterDevice(accountID, accountKey string, device model.Device) error
 
-	// Accounts returns all accounts
-	Accounts() ([]string, error)
+	// Account returns an account
+	Account(accountID string) (model.Account, error)
 
 	// Devices returns all devices for a given account
 	Devices(accountID string) ([]model.Device, error)
+
+	// Device returns a device from a given account
+	Device(accountID, deviceID string) (model.Device, error)
 }

@@ -11,11 +11,12 @@ func TestNewMemory(t *testing.T) {
 	m := NewMemory()
 
 	require.NotNil(t, m)
-	require.NotNil(t, m.data)
+	require.NotNil(t, m.accounts)
+	require.NotNil(t, m.devices)
 }
 
 func TestCheckSubscription(t *testing.T) {
-	m := newSeededMemoryStore()
+	m := NewTestingMemory()
 
 	require.NoError(t, m.CheckSubscription("abc", "xyz"))
 	require.NoError(t, m.CheckSubscription("go", "095"))
@@ -24,32 +25,57 @@ func TestCheckSubscription(t *testing.T) {
 }
 
 func TestRegisterDevice(t *testing.T) {
-	m := newSeededMemoryStore()
+	m := NewTestingMemory()
 
-	_, ok := m.data["abc"].devices["test-device"]
-	require.False(t, ok, "expected test-device to not exist")
+	// Add to device map
+	d := []model.Device{
+		{
+			AccountID: "abc",
+			ID:        "test-device",
+			Hostname:  "orig",
+		},
+	}
+	m.devices["abc"] = d
 
-	err := m.RegisterDevice("abc", "xyz", "test-device", model.Device{})
+	err := m.RegisterDevice("abc", "xyz", model.Device{
+		ID:        "test-device",
+		AccountID: "abc",
+		Hostname:  "new",
+	})
 	require.NoError(t, err)
 
-	_, ok = m.data["abc"].devices["test-device"]
-	require.True(t, ok, "expected test-device to exist")
+	found := false
+	for _, d := range m.devices["abc"] {
+		if d.ID == "test-device" {
+			found = true
+			require.Equal(t, "new", d.Hostname, "expected RegisterDevice to update existing device")
+		}
+	}
+	require.True(t, found, "expected found to be true, because we seeded the 'test-device'. This should never fail.")
 
-	err = m.RegisterDevice("abc", "ttt", "test-device", model.Device{})
+	err = m.RegisterDevice("invalidaccount", "ttt", model.Device{})
 	require.Error(t, err, "expected an error when registering a device using an invalid account key")
+	require.ErrorContains(t, err, "subscription validation failed")
 }
 
-func TestAccounts(t *testing.T) {
-	m := newSeededMemoryStore()
+func TestAccount(t *testing.T) {
+	m := NewTestingMemory()
 
-	accounts, err := m.Accounts()
+	account, err := m.Account("abc")
 	require.NoError(t, err)
-	require.NotNil(t, accounts)
-	require.Len(t, accounts, 2, "expected exactly two accounts, 'abc' and 'go'")
+	require.Equal(t, model.Account{
+		ID:     "abc",
+		Key:    "xyz",
+		Active: true,
+	}, account)
+
+	account, err = m.Account("invalid")
+	require.Error(t, err)
+	require.Equal(t, model.Account{}, account)
 }
 
 func TestDevices(t *testing.T) {
-	m := newSeededMemoryStore()
+	m := NewTestingMemory()
 
 	devices, err := m.Devices("abc")
 	require.NoError(t, err)
@@ -60,23 +86,23 @@ func TestDevices(t *testing.T) {
 	require.Error(t, err, "expected an error when looking up devices for an account that does not exist")
 }
 
-func newSeededMemoryStore() *Memory {
-	seed := map[string]account{}
-	seed["abc"] = account{
-		accountKey: "xyz",
-		devices: map[string]model.Device{
-			"device-a": {},
-			"device-b": {},
-		},
-	}
-	seed["go"] = account{
-		accountKey: "095",
-		devices: map[string]model.Device{
-			"apple": {},
-			"pear":  {},
-		},
-	}
-	m := NewMemory()
-	m.data = seed
-	return m
+func TestDevice(t *testing.T) {
+	m := NewTestingMemory()
+
+	device, err := m.Device("abc", "device-a")
+	require.NoError(t, err)
+	// TODO(jsirianni): Add fields to device type
+	require.Equal(t, model.Device{
+		ID:        "device-a",
+		AccountID: "abc",
+		Hostname:  "testname",
+	}, device)
+
+	_, err = m.Device("badaccount", "")
+	require.Error(t, err, "expected an error when looking up devices for an account that does not exist")
+	require.ErrorContains(t, err, "account with id badaccount does not exist")
+
+	_, err = m.Device("abc", "invalid")
+	require.Error(t, err)
+	require.ErrorContains(t, err, "account with id abc does not have device with id invalid")
 }

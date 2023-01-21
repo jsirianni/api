@@ -3,13 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/jsirianni/server/logging"
 	"github.com/jsirianni/server/server"
 	"go.uber.org/zap"
@@ -19,7 +17,7 @@ func main() {
 	// Configure a Zap logger, which will be used for
 	// unified logging between your business logic
 	// logging and the Gin server's request logging.
-	logger, err := logging.New()
+	logger, err := logging.New(logging.DebugLevel)
 	if err != nil {
 		fmt.Printf("failed to configure logger: %s\n", err)
 		os.Exit(1)
@@ -29,14 +27,12 @@ func main() {
 	s, err := server.New(
 		logger,
 		server.WithBindAddress("", 8000),
+		server.WithMemoryStore(true),
 	)
 	if err != nil {
 		logger.Sugar().Errorf("failed to initialize server: %s", err)
 		os.Exit(1)
 	}
-
-	// Add routes after creating the server.
-	s.Router.GET("/health", healthHandler)
 
 	// Configure a context which will be cancled by SIGINT and
 	// SIGTERM signals. This will allow for graceful shutdown.
@@ -77,8 +73,4 @@ func main() {
 
 	// Exit with 0 if there were no runtime or shutdown errors.
 	os.Exit(0)
-}
-
-func healthHandler(c *gin.Context) {
-	c.JSON(http.StatusOK, nil)
 }
